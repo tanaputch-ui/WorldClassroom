@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎓 World Classroom — Interactive 3D</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Noto+Sans+Thai:wght@300;400;600&display=swap');
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a0f;overflow:hidden;font-family:'Noto Sans Thai',sans-serif;color:#fff}
+  #canvas{display:block;width:100vw;height:100vh}
+
+  /* HUD */
+  #hud{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10}
+
+  /* Top bar */
+  #topbar{
+    position:fixed;top:0;left:0;right:0;
+    padding:14px 28px;
+    background:linear-gradient(180deg,rgba(5,5,15,0.9) 0%,transparent 100%);
+    display:flex;align-items:center;justify-content:space-between;
+    pointer-events:none;
+  }
+  .logo{
+    font-family:'Playfair Display',serif;
+    font-size:20px;letter-spacing:2px;
+    background:linear-gradient(135deg,#f5c842,#e8854a,#c44569);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .subtitle{font-size:11px;color:rgba(255,255,255,0.45);letter-spacing:3px;text-transform:uppercase;margin-top:2px}
+
+  /* Controls hint */
+  #controls-hint{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,0.55);backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,0.1);border-radius:40px;
+    padding:10px 24px;display:flex;gap:18px;align-items:center;
+    font-size:12px;color:rgba(255,255,255,0.6);
+    pointer-events:none;
+    transition:opacity 0.5s;
+  }
+  .key{
+    background:rgba(255,255,255,0.12);border-radius:6px;
+    padding:3px 8px;font-size:11px;color:#fff;
+    border:1px solid rgba(255,255,255,0.2);
+  }
+
+  /* Upload Panel */
+  #upload-panel{
+    position:fixed;right:20px;top:50%;transform:translateY(-50%);
+    width:240px;
+    background:rgba(8,8,20,0.85);backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.1);border-radius:16px;
+    padding:20px;pointer-events:all;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    transition:transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275),opacity 0.4s;
+  }
+  #upload-panel.hidden{transform:translateY(-50%) translateX(280px);opacity:0;pointer-events:none}
+  .panel-title{
+    font-family:'Playfair Display',serif;font-size:15px;
+    margin-bottom:4px;
+    background:linear-gradient(135deg,#f5c842,#e8854a);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .panel-sub{font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:16px;letter-spacing:1px}
+
+  .frame-select{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:14px;
+  }
+  .frame-btn{
+    background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
+    border-radius:8px;padding:8px 4px;font-size:10px;color:rgba(255,255,255,0.6);
+    cursor:pointer;text-align:center;transition:all 0.2s;
+  }
+  .frame-btn:hover,.frame-btn.active{
+    background:rgba(245,200,66,0.15);border-color:rgba(245,200,66,0.5);
+    color:#f5c842;
+  }
+  .frame-btn .icon{font-size:16px;display:block;margin-bottom:3px}
+
+  .upload-zone{
+    border:2px dashed rgba(255,255,255,0.15);border-radius:12px;
+    padding:20px 10px;text-align:center;cursor:pointer;
+    transition:all 0.3s;background:rgba(255,255,255,0.03);
+    position:relative;overflow:hidden;
+  }
+  .upload-zone:hover{border-color:rgba(245,200,66,0.5);background:rgba(245,200,66,0.05)}
+  .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .upload-icon{font-size:28px;margin-bottom:6px}
+  .upload-text{font-size:11px;color:rgba(255,255,255,0.5)}
+  .upload-text strong{color:#f5c842;display:block;font-size:12px}
+
+  .preview-list{margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto}
+  .preview-item{
+    display:flex;align-items:center;gap:8px;
+    background:rgba(255,255,255,0.04);border-radius:8px;padding:6px 8px;
+    font-size:10px;color:rgba(255,255,255,0.6);
+  }
+  .preview-thumb{width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.1)}
+  .preview-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .preview-del{cursor:pointer;color:rgba(255,80,80,0.7);font-size:14px;flex-shrink:0}
+  .preview-del:hover{color:#ff5050}
+
+  /* Toggle button */
+  #toggle-panel{
+    position:fixed;right:20px;top:50%;transform:translateY(-50%);
+    width:42px;height:42px;border-radius:50%;
+    background:linear-gradient(135deg,#f5c842,#e8854a);
+    border:none;cursor:pointer;pointer-events:all;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;box-shadow:0 4px 20px rgba(245,200,66,0.4);
+    transition:all 0.3s;z-index:20;
+  }
+  #toggle-panel:hover{transform:translateY(-50%) scale(1.1)}
+  #toggle-panel.shifted{right:276px}
+
+  /* Crosshair */
+  #crosshair{
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:18px;height:18px;pointer-events:none;
+  }
+  #crosshair::before,#crosshair::after{
+    content:'';position:absolute;background:rgba(255,255,255,0.7);border-radius:2px;
+  }
+  #crosshair::before{width:1px;height:100%;left:50%;transform:translateX(-50%)}
+  #crosshair::after{width:100%;height:1px;top:50%;transform:translateY(-50%)}
+
+  /* Lock overlay */
+  #lock-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.7);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    z-index:50;cursor:pointer;transition:opacity 0.3s;
+  }
+  #lock-overlay.hidden{opacity:0;pointer-events:none}
+  .lock-icon{font-size:64px;margin-bottom:16px;animation:pulse 2s infinite}
+  .lock-title{font-family:'Playfair Display',serif;font-size:28px;margin-bottom:8px;
+    background:linear-gradient(135deg,#f5c842,#e8854a);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .lock-sub{font-size:13px;color:rgba(255,255,255,0.5);letter-spacing:2px}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+
+  /* Notice */
+  #notice{
+    position:fixed;top:70px;left:50%;transform:translateX(-50%);
+    background:rgba(245,200,66,0.15);border:1px solid rgba(245,200,66,0.3);
+    border-radius:8px;padding:8px 18px;font-size:12px;color:#f5c842;
+    opacity:0;transition:opacity 0.4s;pointer-events:none;white-space:nowrap;
+  }
+  #notice.show{opacity:1}
+
+  ::-webkit-scrollbar{width:4px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<!-- Lock overlay -->
+<div id="lock-overlay">
+  <div class="lock-icon">🎓</div>
+  <div class="lock-title">World Classroom</div>
+  <div class="lock-sub">คลิกเพื่อเข้าห้องเรียน • Click to Enter</div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="topbar">
+    <div>
+      <div class="logo">WORLD CLASSROOM</div>
+      <div class="subtitle">International Teacher Education · 3D Environment</div>
+    </div>
+  </div>
+  <div id="crosshair"></div>
+</div>
+
+<div id="controls-hint">
+  <span><span class="key">W A S D</span> เดิน</span>
+  <span><span class="key">Mouse</span> มอง</span>
+  <span><span class="key">ESC</span> ออก</span>
+</div>
+
+<!-- Toggle panel button -->
+<button id="toggle-panel" title="อัปโหลดรูปภาพ">🖼️</button>
+
+<!-- Upload Panel -->
+<div id="upload-panel">
+  <div class="panel-title">🖼️ แกลเลอรีห้องเรียน</div>
+  <div class="panel-sub">CLASSROOM GALLERY UPLOAD</div>
+
+  <div class="panel-sub" style="margin-bottom:6px">เลือกกรอบที่ต้องการ</div>
+  <div class="frame-select">
+    <div class="frame-btn active" data-slot="0"><span class="icon">🗺️</span>แผนที่</div>
+    <div class="frame-btn" data-slot="1"><span class="icon">📊</span>กราฟ</div>
+    <div class="frame-btn" data-slot="2"><span class="icon">🏛️</span>ประวัติ</div>
+    <div class="frame-btn" data-slot="3"><span class="icon">🔬</span>วิทย์</div>
+    <div class="frame-btn" data-slot="4"><span class="icon">🎨</span>ศิลปะ</div>
+    <div class="frame-btn" data-slot="5"><span class="icon">📝</span>ผลงาน</div>
+  </div>
+
+  <div class="upload-zone" id="drop-zone">
+    <input type="file" id="file-input" accept="image/*" multiple>
+    <div class="upload-icon">📤</div>
+    <div class="upload-text">
+      <strong>วางหรือคลิกอัปโหลด</strong>
+      รองรับ JPG, PNG, GIF, WebP
+    </div>
+  </div>
+
+  <div class="preview-list" id="preview-list"></div>
+</div>
+
+<div id="notice">✅ อัปโหลดรูปภาพสำเร็จ!</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── Canvas Texture Helpers ─────────────────────────────────────────────────
+function makeCanvasTexture(w,h,fn){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d');fn(ctx,w,h);
+  const t=new THREE.CanvasTexture(c);return t;
+}
+
+function texFloor(w,h){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    ctx.fillStyle='#1a1228';ctx.fillRect(0,0,w,h);
+    const tile=64;
+    for(let x=0;x<w;x+=tile)for(let y=0;y<h;y+=tile){
+      const even=(Math.floor(x/tile)+Math.floor(y/tile))%2===0;
+      ctx.fillStyle=even?'#1e1630':'#221840';
+      ctx.fillRect(x,y,tile,tile);
+      ctx.strokeStyle='rgba(120,80,200,0.15)';ctx.lineWidth=1;
+      ctx.strokeRect(x,y,tile,tile);
+    }
+    // grid glow lines
+    ctx.strokeStyle='rgba(160,100,255,0.08)';ctx.lineWidth=2;
+    for(let x=0;x<w;x+=tile*4){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+    for(let y=0;y<h;y+=tile*4){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+  });
+}
+
+function texCeiling(w,h){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    ctx.fillStyle='#0d0a1a';ctx.fillRect(0,0,w,h);
+    // ceiling panels
+    const pw=128,ph=80;
+    for(let x=0;x<w;x+=pw)for(let y=0;y<h;y+=ph){
+      const g=ctx.createRadialGradient(x+pw/2,y+ph/2,4,x+pw/2,y+ph/2,pw/2);
+      g.addColorStop(0,'rgba(200,180,255,0.06)');g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;ctx.fillRect(x,y,pw,ph);
+      ctx.strokeStyle='rgba(100,60,160,0.2)';ctx.lineWidth=1;
+      ctx.strokeRect(x+2,y+2,pw-4,ph-4);
+    }
+  });
+}
+
+function texWall(w,h,color='#12102a',accent='rgba(100,60,200,0.3)'){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    ctx.fillStyle=color;ctx.fillRect(0,0,w,h);
+    // subtle brick pattern
+    const bw=100,bh=40;
+    for(let row=0;row<Math.ceil(h/bh);row++){
+      const offset=row%2?bw/2:0;
+      for(let col=-1;col<Math.ceil(w/bw)+1;col++){
+        const x=col*bw+offset,y=row*bh;
+        ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;
+        ctx.strokeRect(x,y,bw,bh);
+      }
+    }
+    // decorative stripe
+    const g=ctx.createLinearGradient(0,h*0.85,0,h);
+    g.addColorStop(0,accent);g.addColorStop(1,'transparent');
+    ctx.fillStyle=g;ctx.fillRect(0,h*0.85,w,h*0.15);
+  });
+}
+
+function texChalkboard(w,h,text=''){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    // board background
+    const g=ctx.createRadialGradient(w/2,h/2,10,w/2,h/2,w*0.7);
+    g.addColorStop(0,'#1a3a2a');g.addColorStop(1,'#0d2018');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    // chalk texture noise
+    for(let i=0;i<2000;i++){
+      const x=Math.random()*w,y=Math.random()*h;
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.015})`;
+      ctx.fillRect(x,y,Math.random()*3,Math.random()*3);
+    }
+    // frame
+    ctx.strokeStyle='rgba(180,140,80,0.8)';ctx.lineWidth=8;
+    ctx.strokeRect(4,4,w-8,h-8);
+    ctx.strokeStyle='rgba(200,160,100,0.4)';ctx.lineWidth=3;
+    ctx.strokeRect(14,14,w-28,h-28);
+    // decorative lines
+    for(let y=60;y<h-40;y+=36){
+      ctx.strokeStyle=`rgba(255,255,255,${y%72===0?0.06:0.025})`;
+      ctx.lineWidth=y%72===0?2:1;
+      ctx.beginPath();ctx.moveTo(20,y);ctx.lineTo(w-20,y);ctx.stroke();
+    }
+    // title
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.font=`bold ${w*0.065}px Georgia,serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(255,255,255,0.2)';ctx.shadowBlur=10;
+    ctx.fillText('World Teacher Education',w/2,h*0.18);
+    ctx.font=`${w*0.04}px Georgia,serif`;
+    ctx.fillStyle='rgba(200,230,200,0.7)';
+    ctx.fillText('วิชาชีพครู — International Programme',w/2,h*0.3);
+    // chalk drawings
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=2;
+    // simple globe sketch
+    const cx=w*0.5,cy=h*0.62,r=h*0.22;
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx-r,cy);ctx.lineTo(cx+r,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,cy-r);ctx.lineTo(cx,cy+r);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,r*0.5,r,0,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,r,r*0.35,0,0,Math.PI*2);ctx.stroke();
+    // stars around globe
+    [[cx-r*1.3,cy-r*0.8],[cx+r*1.3,cy-r*0.8],[cx-r*1.4,cy+r*0.6],[cx+r*1.4,cy+r*0.6]].forEach(([sx,sy])=>{
+      ctx.fillStyle='rgba(255,220,100,0.7)';
+      ctx.font='18px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('★',sx,sy);
+    });
+  });
+}
+
+function texDesk(w,h){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    const g=ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#5c3d1e');g.addColorStop(0.5,'#7a5230');g.addColorStop(1,'#4a3015');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    // wood grain
+    for(let i=0;i<12;i++){
+      const y=Math.random()*h;
+      ctx.strokeStyle=`rgba(0,0,0,${0.05+Math.random()*0.1})`;
+      ctx.lineWidth=1+Math.random()*2;
+      ctx.beginPath();ctx.moveTo(0,y);
+      ctx.bezierCurveTo(w*0.3,y+10,w*0.7,y-10,w,y+5);
+      ctx.stroke();
+    }
+    ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=2;
+    ctx.strokeRect(2,2,w-4,h-4);
+  });
+}
+
+function texFlag(w,h,country){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    if(country==='th'){
+      // Thailand flag
+      const bh=h/5;
+      ['#A51931','#fff','#2D2A4A','#fff','#A51931'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(0,i*bh,w,bh+1)});
+    } else if(country==='us'){
+      ctx.fillStyle='#B22234';ctx.fillRect(0,0,w,h);
+      const sw=h/13;
+      for(let i=0;i<13;i+=2){ctx.fillStyle='#fff';ctx.fillRect(0,i*sw,w,sw)}
+      ctx.fillStyle='#3C3B6E';ctx.fillRect(0,0,w*0.4,h*0.54);
+    } else if(country==='gb'){
+      ctx.fillStyle='#012169';ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle='#fff';ctx.lineWidth=h/5;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(w,h);ctx.moveTo(w,0);ctx.lineTo(0,h);ctx.stroke();
+      ctx.strokeStyle='#C8102E';ctx.lineWidth=h/8;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(w,h);ctx.moveTo(w,0);ctx.lineTo(0,h);ctx.stroke();
+      ctx.strokeStyle='#fff';ctx.lineWidth=h/5;
+      ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
+      ctx.strokeStyle='#C8102E';ctx.lineWidth=h/8;
+      ctx.beginPath();ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
+    } else if(country==='jp'){
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+      ctx.fillStyle='#BC002D';ctx.beginPath();ctx.arc(w/2,h/2,h*0.3,0,Math.PI*2);ctx.fill();
+    } else if(country==='de'){
+      ['#000','#DD0000','#FFCE00'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(0,i*h/3,w,h/3+1)});
+    } else if(country==='fr'){
+      ['#002395','#fff','#ED2939'].forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(i*w/3,0,w/3+1,h)});
+    }
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=2;ctx.strokeRect(0,0,w,h);
+  });
+}
+
+function texBookCover(w,h,title,color1,color2){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,color1);g.addColorStop(1,color2);
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=2;
+    ctx.strokeRect(4,4,w-8,h-8);
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.font=`bold ${Math.min(w,h)*0.15}px serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    // wrap text
+    const words=title.split(' ');let line='';const lines=[];
+    words.forEach(word=>{
+      const test=line+word+' ';
+      if(ctx.measureText(test).width>w-16&&line){lines.push(line.trim());line=word+' ';}
+      else line=test;
+    });lines.push(line.trim());
+    const lh=h*0.18;const startY=h/2-(lines.length-1)*lh/2;
+    lines.forEach((l,i)=>ctx.fillText(l,w/2,startY+i*lh));
+  });
+}
+
+function texGalleryFrame(w,h,label){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    ctx.fillStyle='#1a1230';ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='rgba(255,255,255,0.05)';
+    ctx.fillRect(10,10,w-20,h-20);
+    ctx.strokeStyle='rgba(245,200,66,0.6)';ctx.lineWidth=4;
+    ctx.strokeRect(2,2,w-4,h-4);
+    ctx.strokeStyle='rgba(245,200,66,0.25)';ctx.lineWidth=2;
+    ctx.strokeRect(10,10,w-20,h-20);
+    ctx.fillStyle='rgba(245,200,66,0.5)';
+    ctx.font=`bold ${Math.min(w,h)*0.08}px sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(label||'Upload Image',w/2,h/2-12);
+    ctx.fillStyle='rgba(255,255,255,0.3)';
+    ctx.font=`${Math.min(w,h)*0.06}px sans-serif`;
+    ctx.fillText('คลิกเพื่ออัปโหลด',w/2,h/2+14);
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    ctx.font='32px sans-serif';
+    ctx.fillText('📤',w/2,h/2+42);
+  });
+}
+
+function texGlobe(w,h){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    // ocean
+    const bg=ctx.createRadialGradient(w/2,h/2,10,w/2,h/2,w/2);
+    bg.addColorStop(0,'#1a6e9e');bg.addColorStop(1,'#0a3a5c');
+    ctx.fillStyle=bg;ctx.beginPath();ctx.arc(w/2,h/2,w/2-2,0,Math.PI*2);ctx.fill();
+    // continents (simplified)
+    ctx.fillStyle='#3a8c5a';
+    // Europe/Africa blob
+    ctx.beginPath();ctx.ellipse(w*0.52,h*0.38,w*0.1,h*0.16,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(w*0.52,h*0.62,w*0.08,h*0.18,0.2,0,Math.PI*2);ctx.fill();
+    // Americas
+    ctx.beginPath();ctx.ellipse(w*0.3,h*0.4,w*0.09,h*0.15,-0.2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(w*0.32,h*0.65,w*0.07,h*0.18,0.3,0,Math.PI*2);ctx.fill();
+    // Asia
+    ctx.beginPath();ctx.ellipse(w*0.7,h*0.35,w*0.12,h*0.15,0,0,Math.PI*2);ctx.fill();
+    // grid lines
+    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1;
+    for(let i=1;i<4;i++){
+      const y=h*i/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    }
+    for(let i=1;i<4;i++){
+      const x=w*i/4;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+    }
+    // shine
+    const shine=ctx.createRadialGradient(w*0.35,h*0.3,0,w*0.4,h*0.35,w*0.45);
+    shine.addColorStop(0,'rgba(255,255,255,0.25)');shine.addColorStop(1,'transparent');
+    ctx.fillStyle=shine;ctx.beginPath();ctx.arc(w/2,h/2,w/2-2,0,Math.PI*2);ctx.fill();
+  });
+}
+
+function texClock(w,h){
+  return makeCanvasTexture(w,h,(ctx,w,h)=>{
+    const cx=w/2,cy=h/2,r=w/2-4;
+    ctx.fillStyle='#f5f0e0';ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#2a1a0a';ctx.lineWidth=4;ctx.stroke();
+    ctx.fillStyle='#1a0a00';
+    for(let i=0;i<12;i++){
+      const a=i*Math.PI/6-Math.PI/2;
+      const tx=cx+Math.cos(a)*(r*0.78),ty=cy+Math.sin(a)*(r*0.78);
+      ctx.font=`bold ${r*0.16}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(i||12,tx,ty);
+    }
+    // hands (static 10:10)
+    [[r*0.55,-Math.PI/2-Math.PI/3],[r*0.7,-Math.PI/2+Math.PI/6],[r*0.85,-Math.PI/2+Math.PI*0.9]].forEach(([len,a],i)=>{
+      ctx.strokeStyle=i===2?'#c00':'#1a0a00';ctx.lineWidth=i===2?2:i===0?5:3;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*len,cy+Math.sin(a)*len);ctx.stroke();
+    });
+    ctx.fillStyle='#1a0a00';ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fill();
+  });
+}
+
+// ─── Scene Setup ────────────────────────────────────────────────────────────
+const canvas=document.getElementById('canvas');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.2;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x050510);
+scene.fog=new THREE.FogExp2(0x08091a,0.04);
+
+const camera=new THREE.PerspectiveCamera(70,window.innerWidth/window.innerHeight,0.1,100);
+camera.position.set(0,1.65,5);
+
+// ─── Lighting ────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x8090d0,0.4));
+
+// Main overhead lights
+[-4,-1,2,5].forEach(x=>{
+  const l=new THREE.PointLight(0xffeedd,1.2,8);
+  l.position.set(x,3.5,0);l.castShadow=true;
+  l.shadow.mapSize.set(512,512);scene.add(l);
+  // Light fixture geometry
+  const fix=new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2,0.3,0.15,8),
+    new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffcc,emissiveIntensity:0.8})
+  );fix.position.set(x,3.9,0);scene.add(fix);
+});
+
+// Accent lights
+const blueLight=new THREE.PointLight(0x4060ff,1,12);
+blueLight.position.set(-5,2,0);scene.add(blueLight);
+const warmLight=new THREE.PointLight(0xff8040,0.8,10);
+warmLight.position.set(5,2,-3);scene.add(warmLight);
+
+// ─── Room Geometry ───────────────────────────────────────────────────────────
+const ROOM_W=16,ROOM_H=4.5,ROOM_D=14;
+
+// Floor
+const floor=new THREE.Mesh(
+  new THREE.PlaneGeometry(ROOM_W,ROOM_D,1,1),
+  new THREE.MeshStandardMaterial({map:texFloor(512,512),roughness:0.6,metalness:0.2})
+);
+floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+
+// Ceiling
+const ceiling=new THREE.Mesh(
+  new THREE.PlaneGeometry(ROOM_W,ROOM_D),
+  new THREE.MeshStandardMaterial({map:texCeiling(512,512),roughness:0.9})
+);
+ceiling.rotation.x=Math.PI/2;ceiling.position.y=ROOM_H;scene.add(ceiling);
+
+// Walls helper
+function makeWall(w,h,x,y,z,ry,tex,color,accent){
+  const m=new THREE.Mesh(
+    new THREE.PlaneGeometry(w,h),
+    new THREE.MeshStandardMaterial({map:tex||texWall(512,512,color,accent),roughness:0.85,metalness:0.05})
+  );
+  m.position.set(x,y,z);m.rotation.y=ry;m.receiveShadow=true;scene.add(m);return m;
+}
+
+// Front wall (chalkboard wall)
+makeWall(ROOM_W,ROOM_H,0,ROOM_H/2,-ROOM_D/2,0,texWall(512,512,'#0e0c1e','rgba(80,40,180,0.4)'));
+// Back wall
+makeWall(ROOM_W,ROOM_H,0,ROOM_H/2,ROOM_D/2,Math.PI,texWall(512,512,'#0e0c1e','rgba(80,40,180,0.3)'));
+// Left wall
+makeWall(ROOM_D,ROOM_H,-ROOM_W/2,ROOM_H/2,0,Math.PI/2,texWall(512,512,'#0c0a1c','rgba(60,30,160,0.35)'));
+// Right wall
+makeWall(ROOM_D,ROOM_H,ROOM_W/2,ROOM_H/2,0,-Math.PI/2,texWall(512,512,'#0c0a1c','rgba(60,30,160,0.35)'));
+
+// Baseboard trim
+[-ROOM_D/2,ROOM_D/2].forEach((z,i)=>{
+  const b=new THREE.Mesh(new THREE.BoxGeometry(ROOM_W,0.15,0.08),new THREE.MeshStandardMaterial({color:0x4a3080,emissive:0x2a1850,emissiveIntensity:0.3}));
+  b.position.set(0,0.075,z+(i?-0.04:0.04));scene.add(b);
+});
+[-ROOM_W/2,ROOM_W/2].forEach((x,i)=>{
+  const b=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.15,ROOM_D),new THREE.MeshStandardMaterial({color:0x4a3080,emissive:0x2a1850,emissiveIntensity:0.3}));
+  b.position.set(x+(i?-0.04:0.04),0.075,0);scene.add(b);
+});
+
+// ─── Chalkboard ──────────────────────────────────────────────────────────────
+const cbW=8,cbH=2.8;
+const chalkboard=new THREE.Mesh(
+  new THREE.PlaneGeometry(cbW,cbH),
+  new THREE.MeshStandardMaterial({map:texChalkboard(1024,512),roughness:0.95,metalness:0.0})
+);
+chalkboard.position.set(0,2.2,-ROOM_D/2+0.05);scene.add(chalkboard);
+// Frame
+const cbFrame=new THREE.Mesh(
+  new THREE.BoxGeometry(cbW+0.3,cbH+0.3,0.06),
+  new THREE.MeshStandardMaterial({color:0x7a5a20,roughness:0.7,metalness:0.3})
+);
+cbFrame.position.set(0,2.2,-ROOM_D/2+0.02);scene.add(cbFrame);
+// Chalk tray
+const tray=new THREE.Mesh(new THREE.BoxGeometry(cbW,0.1,0.15),new THREE.MeshStandardMaterial({color:0x5a3a10,roughness:0.8}));
+tray.position.set(0,0.75,-ROOM_D/2+0.1);scene.add(tray);
+
+// ─── Teacher's Desk ──────────────────────────────────────────────────────────
+function makeBox(w,h,d,x,y,z,mat){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;
+}
+const woodMat=new THREE.MeshStandardMaterial({map:texDesk(256,256),roughness:0.7,metalness:0.1});
+const legMat=new THREE.MeshStandardMaterial({color:0x3a2810,roughness:0.8});
+// Teacher's desk
+makeBox(3,0.08,1.4,0,0.82,-ROOM_D/2+2.4,woodMat);
+makeBox(0.08,0.82,0.08,-1.45,0.41,-ROOM_D/2+1.75,legMat);
+makeBox(0.08,0.82,0.08,1.45,0.41,-ROOM_D/2+1.75,legMat);
+makeBox(0.08,0.82,0.08,-1.45,0.41,-ROOM_D/2+3.05,legMat);
+makeBox(0.08,0.82,0.08,1.45,0.41,-ROOM_D/2+3.05,legMat);
+// Teacher's chair
+makeBox(0.7,0.05,0.65,0,0.5,-ROOM_D/2+3.6,woodMat);
+makeBox(0.7,0.65,0.06,0,0.82,-ROOM_D/2+3.95,new THREE.MeshStandardMaterial({color:0x1a3050,roughness:0.8}));
+[[-0.3],[0.3]].forEach(([lx])=>{
+  makeBox(0.06,0.5,0.06,lx,0.25,-ROOM_D/2+3.35,legMat);
+  makeBox(0.06,0.5,0.06,lx,0.25,-ROOM_D/2+3.9,legMat);
+});
+
+// Globe on teacher's desk
+const globeGeo=new THREE.SphereGeometry(0.18,32,32);
+const globeMat=new THREE.MeshStandardMaterial({map:texGlobe(256,256),roughness:0.6,metalness:0.1});
+const globeMesh=new THREE.Mesh(globeGeo,globeMat);
+globeMesh.position.set(-1,1.05,-ROOM_D/2+2.4);globeMesh.castShadow=true;scene.add(globeMesh);
+// Globe stand
+const standGeo=new THREE.CylinderGeometry(0.04,0.08,0.2,12);
+const stand=new THREE.Mesh(standGeo,legMat);stand.position.set(-1,0.92,-ROOM_D/2+2.4);scene.add(stand);
+// Clock on wall
+const clockMesh=new THREE.Mesh(
+  new THREE.CircleGeometry(0.28,32),
+  new THREE.MeshStandardMaterial({map:texClock(256,256),roughness:0.3})
+);
+clockMesh.position.set(4.5,3.5,-ROOM_D/2+0.06);scene.add(clockMesh);
+
+// ─── Student Desks ────────────────────────────────────────────────────────────
+const deskPositions=[];
+for(let row=0;row<3;row++){
+  for(let col=0;col<4;col++){
+    const x=(col-1.5)*2.8,z=row*2.4+0.5;
+    deskPositions.push([x,z]);
+    // Desk top
+    makeBox(1.1,0.06,0.8,x,0.75,z,woodMat);
+    // Legs
+    [[-0.5,z-0.35],[0.5,z-0.35],[-0.5,z+0.35],[0.5,z+0.35]].forEach(([lx,lz])=>makeBox(0.06,0.75,0.06,x+lx,0.375,lz,legMat));
+    // Chair
+    makeBox(0.65,0.04,0.55,x,0.45,z+0.85,woodMat);
+    makeBox(0.65,0.5,0.05,x,0.7,z+1.15,new THREE.MeshStandardMaterial({color:0x1a3050,roughness:0.8}));
+  }
+}
+
+// ─── Books on shelves ─────────────────────────────────────────────────────────
+const bookConfigs=[
+  ['Pedagogy','#8B2252','#5a1535'],['World Hist','#1a5e9a','#0d3a6a'],
+  ['Science','#2a7a3a','#1a4a22'],['Mathematics','#c0392b','#8a2020'],
+  ['Literature','#8B6914','#5a4008'],['Geography','#1a7a8a','#0d4a55'],
+  ['Philosophy','#6a2a9a','#3a1060'],['Art & Music','#c05a10','#8a3a08'],
+];
+// Bookshelf on right wall
+const shelfMat=new THREE.MeshStandardMaterial({color:0x5c3d1e,roughness:0.8,metalness:0.1});
+for(let shelf=0;shelf<3;shelf++){
+  makeBox(2.4,0.06,0.3,ROOM_W/2-0.18,0.8+shelf*1.1,-3,shelfMat);
+  bookConfigs.slice(shelf*2,(shelf+1)*2+2).forEach((b,i)=>{
+    const bx=ROOM_W/2-0.35-(i%4)*0.55;
+    makeBox(0.1,0.8+Math.random()*0.2,0.26,bx,1.2+shelf*1.1,-3,
+      new THREE.MeshStandardMaterial({map:texBookCover(64,128,b[0],b[1],b[2]),roughness:0.7}));
+  });
+}
+
+// ─── Flags ────────────────────────────────────────────────────────────────────
+const countries=['th','us','gb','jp','de','fr'];
+const flagW=0.9,flagH=0.6;
+countries.forEach((c,i)=>{
+  const fx=-ROOM_W/2+0.1,fz=i*2.1-5;
+  const flag=new THREE.Mesh(
+    new THREE.PlaneGeometry(flagW,flagH),
+    new THREE.MeshStandardMaterial({map:texFlag(128,80,c),roughness:0.8,side:THREE.DoubleSide})
+  );
+  flag.position.set(fx+0.45,2.8,fz);flag.rotation.y=Math.PI/2;scene.add(flag);
+  // flagpole
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,1.5,8),new THREE.MeshStandardMaterial({color:0xc0a060,metalness:0.8,roughness:0.3}));
+  pole.position.set(fx+0.05,2.5,fz);scene.add(pole);
+});
+
+// ─── Gallery Frames ────────────────────────────────────────────────────────────
+const gallerySlots=[];
+const galleryLabels=['🗺️ World Map','📊 Data Chart','🏛️ History','🔬 Science','🎨 Art Work','📝 Student Work'];
+const galleryPositions=[
+  [3,2.5,-ROOM_D/2+0.08,0],    // front wall
+  [-3,2.5,-ROOM_D/2+0.08,0],
+  [ROOM_W/2-0.08,2.5,-1,-Math.PI/2],  // right wall
+  [ROOM_W/2-0.08,2.5,2,-Math.PI/2],
+  [-ROOM_W/2+0.08,2.5,1,Math.PI/2],   // left wall
+  [-ROOM_W/2+0.08,2.5,-2,Math.PI/2],
+];
+
+galleryPositions.forEach(([gx,gy,gz,gy2],i)=>{
+  const fw=1.6,fh=1.1;
+  // Outer frame
+  const frameMesh=new THREE.Mesh(
+    new THREE.BoxGeometry(fw+0.12,fh+0.12,0.04),
+    new THREE.MeshStandardMaterial({color:0xc8a030,metalness:0.7,roughness:0.3,emissive:0x3a2000,emissiveIntensity:0.2})
+  );
+  frameMesh.position.set(gx,gy,gz);frameMesh.rotation.y=gy2;scene.add(frameMesh);
+
+  // Inner canvas (the image display)
+  const imgGeo=new THREE.PlaneGeometry(fw,fh);
+  const imgMat=new THREE.MeshStandardMaterial({map:texGalleryFrame(512,384,galleryLabels[i]),roughness:0.9});
+  const imgMesh=new THREE.Mesh(imgGeo,imgMat);
+  // offset slightly in front of frame
+  const offsetDir=new THREE.Vector3(Math.sin(gy2),0,Math.cos(gy2));
+  imgMesh.position.set(gx+offsetDir.x*0.03,gy,gz+offsetDir.z*0.03);
+  imgMesh.rotation.y=gy2;scene.add(imgMesh);
+  gallerySlots.push({mesh:imgMesh,mat:imgMat});
+
+  // Spot light on frame
+  const spot=new THREE.PointLight(0xffe080,0.6,2.5);
+  spot.position.set(gx+offsetDir.x*0.5,gy+0.8,gz+offsetDir.z*0.5);scene.add(spot);
+});
+
+// ─── Plants ────────────────────────────────────────────────────────────────────
+function makePlant(x,z){
+  // pot
+  const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.08,0.22,12),new THREE.MeshStandardMaterial({color:0xb06040,roughness:0.9}));
+  pot.position.set(x,0.11,z);scene.add(pot);
+  // stem
+  const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.35,6),new THREE.MeshStandardMaterial({color:0x3a6a20,roughness:0.9}));
+  stem.position.set(x,0.4,z);scene.add(stem);
+  // leaves
+  [0,1.2,2.4,3.6,4.8,5.8].forEach(a=>{
+    const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8,0,Math.PI),new THREE.MeshStandardMaterial({color:0x3a8a25,roughness:0.9,side:THREE.DoubleSide}));
+    leaf.position.set(x+Math.cos(a)*0.18,0.58+Math.sin(a+1)*0.08,z+Math.sin(a)*0.18);
+    leaf.rotation.set(Math.random()*0.5,a,Math.random()*0.3);scene.add(leaf);
+  });
+}
+makePlant(-ROOM_W/2+0.4,ROOM_D/2-0.5);
+makePlant(ROOM_W/2-0.4,ROOM_D/2-0.5);
+makePlant(-ROOM_W/2+0.4,-ROOM_D/2+0.8);
+
+// ─── Window on right wall ────────────────────────────────────────────────────
+const windowMat=new THREE.MeshStandardMaterial({
+  color:0x80c8ff,transparent:true,opacity:0.25,emissive:0x4080ff,emissiveIntensity:0.4,side:THREE.DoubleSide
+});
+const windowMesh=new THREE.Mesh(new THREE.PlaneGeometry(2.2,1.6),windowMat);
+windowMesh.position.set(ROOM_W/2-0.05,2.2,4);windowMesh.rotation.y=-Math.PI/2;scene.add(windowMesh);
+// Window frame
+const wFrameMat=new THREE.MeshStandardMaterial({color:0xe8e0cc,roughness:0.5,metalness:0.2});
+[[0,-0.8],[0,0.8]].forEach(([dx,dy])=>{
+  const h=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.08,0.06),wFrameMat);
+  h.position.set(ROOM_W/2-0.05,2.2+dy,4);h.rotation.y=-Math.PI/2;scene.add(h);
+});
+[[1.1,0],[-1.1,0]].forEach(([dx,dy])=>{
+  const v=new THREE.Mesh(new THREE.BoxGeometry(0.08,1.7,0.06),wFrameMat);
+  v.position.set(ROOM_W/2-0.05,2.2,4+dx*0.9);v.rotation.y=-Math.PI/2;scene.add(v);
+});
+// Window light
+const winLight=new THREE.SpotLight(0x80c8ff,2,8,Math.PI/6,0.5);
+winLight.position.set(ROOM_W/2-0.3,2.2,4);winLight.target.position.set(0,1,4);
+scene.add(winLight);scene.add(winLight.target);
+
+// ─── Particle System (dust motes) ────────────────────────────────────────────
+const particleCount=300;
+const pGeo=new THREE.BufferGeometry();
+const pPos=new Float32Array(particleCount*3);
+for(let i=0;i<particleCount;i++){
+  pPos[i*3]=(Math.random()-0.5)*ROOM_W*0.9;
+  pPos[i*3+1]=Math.random()*ROOM_H*0.8+0.2;
+  pPos[i*3+2]=(Math.random()-0.5)*ROOM_D*0.9;
+}
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+const pMat=new THREE.PointsMaterial({color:0xffe8a0,size:0.025,transparent:true,opacity:0.4});
+const particles=new THREE.Points(pGeo,pMat);scene.add(particles);
+
+// ─── First Person Controls ────────────────────────────────────────────────────
+const keys={};let isLocked=false,yaw=0,pitch=0;
+const velocity=new THREE.Vector3();
+const SPEED=3.5,DAMP=8;
+const BOUNDS={minX:-ROOM_W/2+0.5,maxX:ROOM_W/2-0.5,minZ:-ROOM_D/2+0.8,maxZ:ROOM_D/2-0.5};
+
+document.addEventListener('keydown',e=>{keys[e.code]=true});
+document.addEventListener('keyup',e=>{keys[e.code]=false});
+
+canvas.addEventListener('click',()=>{
+  if(!isLocked)canvas.requestPointerLock();
+});
+
+document.addEventListener('pointerlockchange',()=>{
+  isLocked=document.pointerLockElement===canvas;
+  document.getElementById('lock-overlay').classList.toggle('hidden',isLocked);
+});
+
+document.addEventListener('mousemove',e=>{
+  if(!isLocked)return;
+  yaw-=e.movementX*0.002;
+  pitch=Math.max(-0.8,Math.min(0.8,pitch-e.movementY*0.002));
+});
+
+// Touch for mobile
+let touchStart={x:0,y:0};
+canvas.addEventListener('touchstart',e=>{touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY}});
+canvas.addEventListener('touchmove',e=>{
+  if(!isLocked)return;
+  const dx=e.touches[0].clientX-touchStart.x,dy=e.touches[0].clientY-touchStart.y;
+  yaw-=dx*0.003;pitch=Math.max(-0.8,Math.min(0.8,pitch-dy*0.003));
+  touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+});
+
+// ─── Upload Logic ─────────────────────────────────────────────────────────────
+let activeSlot=0;
+const uploadedImages={};
+const previewList=document.getElementById('preview-list');
+const notice=document.getElementById('notice');
+
+document.querySelectorAll('.frame-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.frame-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeSlot=parseInt(btn.dataset.slot);
+  });
+});
+
+function showNotice(msg){
+  notice.textContent=msg;notice.classList.add('show');
+  setTimeout(()=>notice.classList.remove('show'),2500);
+}
+
+function applyImageToSlot(slot,src,name){
+  uploadedImages[slot]={src,name};
+  const img=new Image();img.src=src;
+  img.onload=()=>{
+    const tex=new THREE.Texture(img);tex.needsUpdate=true;
+    gallerySlots[slot].mat.map=tex;gallerySlots[slot].mat.needsUpdate=true;
+    showNotice(`✅ อัปโหลดสำเร็จ (กรอบ ${slot+1})`);
+    updatePreviewList();
+  };
+}
+
+function updatePreviewList(){
+  previewList.innerHTML='';
+  Object.entries(uploadedImages).forEach(([slot,{src,name}])=>{
+    const item=document.createElement('div');item.className='preview-item';
+    item.innerHTML=`<img class="preview-thumb" src="${src}"><span class="preview-name">${name}</span><span class="preview-del" data-slot="${slot}">✕</span>`;
+    previewList.appendChild(item);
+  });
+  previewList.querySelectorAll('.preview-del').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const s=parseInt(btn.dataset.slot);
+      delete uploadedImages[s];
+      gallerySlots[s].mat.map=texGalleryFrame(512,384,galleryLabels[s]);
+      gallerySlots[s].mat.needsUpdate=true;
+      updatePreviewList();
+    });
+  });
+}
+
+function handleFiles(files){
+  [...files].forEach(file=>{
+    if(!file.type.startsWith('image/'))return;
+    const reader=new FileReader();
+    reader.onload=e=>applyImageToSlot(activeSlot,e.target.result,file.name);
+    reader.readAsDataURL(file);
+    activeSlot=(activeSlot+1)%gallerySlots.length;
+    document.querySelectorAll('.frame-btn').forEach((b,i)=>{b.classList.toggle('active',i===activeSlot)});
+  });
+}
+
+document.getElementById('file-input').addEventListener('change',e=>handleFiles(e.target.files));
+
+const dropZone=document.getElementById('drop-zone');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.style.borderColor='rgba(245,200,66,0.8)'});
+dropZone.addEventListener('dragleave',()=>dropZone.style.borderColor='');
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.style.borderColor='';handleFiles(e.dataTransfer.files)});
+
+// Panel toggle
+const panel=document.getElementById('upload-panel');
+const toggleBtn=document.getElementById('toggle-panel');
+let panelOpen=true;
+toggleBtn.addEventListener('click',()=>{
+  panelOpen=!panelOpen;
+  panel.classList.toggle('hidden',!panelOpen);
+  toggleBtn.classList.toggle('shifted',panelOpen);
+  toggleBtn.textContent=panelOpen?'✕':'🖼️';
+});
+
+// ─── Animation Loop ───────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+let hideHintTimer=setTimeout(()=>{document.getElementById('controls-hint').style.opacity='0'},6000);
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta();
+  const t=clock.getElapsedTime();
+
+  // Rotate globe
+  globeMesh.rotation.y=t*0.3;
+
+  // Animate particles
+  const pa=pGeo.attributes.position.array;
+  for(let i=0;i<particleCount;i++){
+    pa[i*3+1]+=Math.sin(t*0.5+i)*0.0008;
+    pa[i*3]+=Math.cos(t*0.3+i*0.7)*0.0005;
+    if(pa[i*3+1]>ROOM_H*0.9)pa[i*3+1]=0.2;
+    if(pa[i*3+1]<0.1)pa[i*3+1]=ROOM_H*0.8;
+  }
+  pGeo.attributes.position.needsUpdate=true;
+
+  // Flicker lights subtly
+  scene.children.forEach(c=>{
+    if(c.isPointLight&&c.position.y>3){
+      c.intensity=1.1+Math.sin(t*7+c.position.x)*0.08;
+    }
+  });
+
+  // Player movement
+  if(isLocked){
+    const dir=new THREE.Vector3();
+    const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+    const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+    if(keys['KeyW']||keys['ArrowUp'])dir.add(forward);
+    if(keys['KeyS']||keys['ArrowDown'])dir.sub(forward);
+    if(keys['KeyA']||keys['ArrowLeft'])dir.sub(right);
+    if(keys['KeyD']||keys['ArrowRight'])dir.add(right);
+    if(dir.length()>0)dir.normalize();
+    velocity.lerp(dir.multiplyScalar(SPEED),dt*DAMP);
+    camera.position.addScaledVector(velocity,dt);
+    // Bounds
+    camera.position.x=Math.max(BOUNDS.minX,Math.min(BOUNDS.maxX,camera.position.x));
+    camera.position.z=Math.max(BOUNDS.minZ,Math.min(BOUNDS.maxZ,camera.position.z));
+    camera.position.y=1.65+Math.sin(t*3)*0.015; // subtle head bob
+  }
+
+  // Camera rotation
+  camera.rotation.order='YXZ';
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch;
+
+  renderer.render(scene,camera);
+}
+
+// ─── Resize ───────────────────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>
